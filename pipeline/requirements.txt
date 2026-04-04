@@ -1,0 +1,2 @@
+# 完整依赖与版本锁定见仓库根目录 requirements.txt（由 venv + pip freeze 生成）。
+# facebook/flores 需要 datasets<3；根目录已固定 datasets==2.x。
