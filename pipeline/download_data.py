@@ -1,33 +1,47 @@
-from pathlib import Path
+# pipeline/download_data.py
+import json
+import os
 
 from datasets import load_dataset
 
-# Hub 上不存在 facebook/flores-200；facebook/flores 在 datasets>=3 下会因 flores.py 报错。
-# 使用 pipeline/requirements.txt 中的 datasets<3，并保留 trust_remote_code（脚本数据集需要）。
-ds = load_dataset(
-    "facebook/flores",
-    "eng_Latn-zho_Hans",
-    split="devtest",
-    trust_remote_code=True,
-)
 
-PREVIEW_N = 5
-_HERE = Path(__file__).resolve().parent
-PREVIEW_PATH = _HERE / "flores_eng_zho_devtest_preview.jsonl"
+def download_flores(n=200, output_path="data/raw/flores_en_zh.jsonl"):
+    """
+    下载 FLORES 英→中（Hub: facebook/flores, eng_Latn-zho_Hans）devtest 的前 n 条。
+    每条格式：{id, en, zh_ref}
+    zh_ref 是人工参考译文，用于最后对比评估
 
-preview = ds.select(range(min(PREVIEW_N, len(ds))))
-preview.to_json(str(PREVIEW_PATH))
+    需 datasets<3 且 trust_remote_code（脚本数据集）。完整依赖见根目录 requirements.txt。
+    """
+    print("Downloading FLORES-200...")
+    ds = load_dataset(
+        "facebook/flores",
+        "eng_Latn-zho_Hans",
+        split="devtest",
+        trust_remote_code=True,
+    )
 
-print(f"共 {len(ds)} 条（devtest）。预览前 {len(preview)} 条已写入：\n  {PREVIEW_PATH}\n")
-for i in range(len(preview)):
-    eng = preview[i]["sentence_eng_Latn"]
-    zho = preview[i]["sentence_zho_Hans"]
-    eng_short = (eng[:120] + "…") if len(eng) > 120 else eng
-    zho_short = (zho[:120] + "…") if len(zho) > 120 else zho
-    print(f"--- [{i}] ---")
-    print(f"EN: {eng_short}")
-    print(f"ZH: {zho_short}\n")
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    samples = []
+    for i, row in enumerate(ds):
+        if i >= n:
+            break
+        samples.append(
+            {
+                "id": i,
+                "en": row["sentence_eng_Latn"],
+                "zh_ref": row["sentence_zho_Hans"],
+            }
+        )
 
-# 每条数据：
-# ds[0]['sentence_eng_Latn']  → 英文原文（给 API 翻译）
-# ds[0]['sentence_zho_Hans']  → 中文参考译文（留着对比用）
+    with open(output_path, "w", encoding="utf-8") as f:
+        for s in samples:
+            f.write(json.dumps(s, ensure_ascii=False) + "\n")
+
+    print(f"Saved {len(samples)} samples to {output_path}")
+    print(f"Example: {samples[0]}")
+    return samples
+
+
+if __name__ == "__main__":
+    download_flores()
